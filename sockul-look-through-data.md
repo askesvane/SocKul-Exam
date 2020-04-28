@@ -5,77 +5,26 @@ Set working directory and load packages
 
     # packages 
     library(pacman)
-    pacman::p_load(tidyverse, patchwork)
+    pacman::p_load(tidyverse, patchwork, readr)
 
     # import data
-    Sac <- read_csv("SaccadesDV.csv")
+    Sac <- read_csv("SaccadesDV.csv", 
+        col_types = cols(
+          CurrentGroupRating = col_number(), 
+          CurrentRating = col_number(), 
+          PreviousGroupRating = col_number(), 
+          PreviousRating = col_number()))
 
-    ## Parsed with column specification:
-    ## cols(
-    ##   .default = col_double(),
-    ##   Blink = col_logical(),
-    ##   Direction = col_character(),
-    ##   Eye = col_character(),
-    ##   CURRENT_SAC_MSG_TEXT_1 = col_character(),
-    ##   Message = col_character(),
-    ##   Event = col_character(),
-    ##   PreviousRating = col_logical(),
-    ##   PreviousGroupRating = col_logical()
-    ## )
 
-    ## See spec(...) for full column specifications.
+    Fix <- read_csv("FixationsDV.csv", 
+        col_types = cols(
+          CurrentGroupRating = col_number(), 
+          PreviousGroupRating = col_number(), 
+          PreviousRating = col_number()))
 
-    ## Warning: 295851 parsing failures.
-    ##    row                 col           expected actual             file
-    ## 247203 PreviousRating      1/0/T/F/TRUE/FALSE      3 'SaccadesDV.csv'
-    ## 247203 PreviousGroupRating 1/0/T/F/TRUE/FALSE      3 'SaccadesDV.csv'
-    ## 247204 PreviousRating      1/0/T/F/TRUE/FALSE      3 'SaccadesDV.csv'
-    ## 247204 PreviousGroupRating 1/0/T/F/TRUE/FALSE      3 'SaccadesDV.csv'
-    ## 247205 PreviousRating      1/0/T/F/TRUE/FALSE      3 'SaccadesDV.csv'
-    ## ...... ................... .................. ...... ................
-    ## See problems(...) for more details.
 
-    Fix <- read_csv("FixationsDV.csv")
-
-    ## Parsed with column specification:
-    ## cols(
-    ##   .default = col_double(),
-    ##   Eye = col_character(),
-    ##   CURRENT_FIX_MSG_TEXT_1 = col_character(),
-    ##   Event = col_character(),
-    ##   AOI = col_character(),
-    ##   PreviousRating = col_logical(),
-    ##   PreviousGroupRating = col_logical(),
-    ##   Message = col_character()
-    ## )
-    ## See spec(...) for full column specifications.
-
-    ## Warning: 312764 parsing failures.
-    ##    row                 col           expected actual              file
-    ## 255913 PreviousRating      1/0/T/F/TRUE/FALSE      3 'FixationsDV.csv'
-    ## 255913 PreviousGroupRating 1/0/T/F/TRUE/FALSE      3 'FixationsDV.csv'
-    ## 255914 PreviousRating      1/0/T/F/TRUE/FALSE      3 'FixationsDV.csv'
-    ## 255914 PreviousGroupRating 1/0/T/F/TRUE/FALSE      3 'FixationsDV.csv'
-    ## 255915 PreviousRating      1/0/T/F/TRUE/FALSE      3 'FixationsDV.csv'
-    ## ...... ................... .................. ...... .................
-    ## See problems(...) for more details.
-
-    Calibration <- read.csv("Calibration.csv", sep = " ") # ?
-    AOI <- read_csv("AoI_Coordinates.csv")
-
-    ## Parsed with column specification:
-    ## cols(
-    ##   Trial = col_character(),
-    ##   Left = col_double(),
-    ##   Top = col_double(),
-    ##   Right = col_double(),
-    ##   Bottom = col_double(),
-    ##   Event = col_character()
-    ## )
-
-    # RAW + create placeholder for raw data
-    #Raw_placeholder <- read_csv("Samples.csv")
-    #Raw <- Raw_placeholder
+    #Calibration <- read.csv("Calibration.csv", sep = " ")
+    #AOI <- read_csv("AoI_Coordinates.csv")
 
 Explore
 =======
@@ -92,13 +41,13 @@ Explore
     # explore some columns
     summary(Fix$PreviousRating)
 
-    ##    Mode    TRUE    NA's 
-    ## logical    5424  415077
+    ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+    ##    1.00    4.00    5.00    4.89    6.00    8.00  255912
 
     summary(Fix$PreviousGroupRating)
 
-    ##    Mode    TRUE    NA's 
-    ## logical   10990  409511
+    ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+    ##    1.00    3.00    5.00    4.83    7.00    8.00  255912
 
     summary(Sac$CurrentRating)
 
@@ -194,137 +143,522 @@ Explore
     ## 5     1     1 34565.
     ## 6     1    NA 35735.
 
-    ### TRY EXTRACT SCALE DURATIONS
-
-
-
-    # Select one trial 
-    ID_105 <- Fix %>% dplyr::filter(ID == 105 & Session == 1 & Picture == 0)
-
-
-    # Total duration sum of fixations
-    dur_sum <- sum(ID_105$Duration)
-
-    # Total duration sum of fixations on the whole Scale
-    scale_sum <- ID_105 %>% dplyr::filter(AOI %in% c(1,2,3,4,5,6,7,8))
-    scale_sum <- sum(scale_sum$Duration)
-
-    # Total duration on target rate
-    ID_105 <-  ID_105 %>% dplyr::filter(AOI %in% c(1,2,3,4,5,6,7,8))
-    ID_105$CurrentGroupRating <- as.numeric(ID_105$CurrentGroupRating)
-    ID_105$AOI <- as.numeric(ID_105$AOI)
-    ID_105 <- ID_105 %>% dplyr::filter(AOI == CurrentGroupRating)
-
-    target_sum <- sum(ID_105$Duration)
-
-
-    ID <- ID_105$ID[1]
-    Trial <- ID_105$Trial[1]
-    Picture <- ID_105$Picture[1]
-    Diagnosis <- ID_105$Group[1]
-    Session <- ID_105$Session[1]
-    RT <- ID_105$RT[1]
-        
-        
-    d <- tibble(dur_sum, scale_sum, target_sum, ID, Trial, Picture, Diagnosis, Session, RT)
-    d
-
-    ## # A tibble: 1 x 9
-    ##   dur_sum scale_sum target_sum    ID Trial Picture Diagnosis Session    RT
-    ##     <dbl>     <dbl>      <dbl> <dbl> <dbl>   <dbl>     <dbl>   <dbl> <dbl>
-    ## 1   12578      4650        738   105    79       0         1       1 11934
-
-    ## Wrap up in a big loop
-
-    # start with a subset
-    session_1 <- Fix %>% filter(Session == 1 & ID %in% c(101,103,105))
-
-
-    # Make empty dataframe
-    df <- tibble(dur_sum = numeric(), 
-                 scale_sum = numeric(), 
-                 target_sum = numeric(), 
-                 ID = numeric(), 
-                 Trial = numeric(),
-                 Picture = numeric(), 
-                 Diagnosis = numeric(), 
-                 Session = numeric(),
-                 RT = numeric())
-
-    # create list of ID's
-    id_list <- unique(session_1$ID)
-
-    # 
-    # for (crt_id in 1:length(id_list)){
-    #   
-    #   # take only one participant at a time
-    #   ID <- dplyr::filter(session_1, ID == id_list[crt_id])
-    #   
-    #   for (crt_trial in 1:length(unique(ID$Trial))){
-    #     
-    #     # take one trial at a time from 1 to 153
-    #     trial <- dplyr::filter(ID, Trial == crt_trial)
-    #     
-    #     # Total duration sum of fixations
-    #     dur_sum <- sum(trial$Duration)
-    #     
-    #     # Total duration sum of fixations on the whole Scale
-    #     scale_sum <- trial %>% dplyr::filter(AOI %in% c(1,2,3,4,5,6,7,8))
-    #     scale_sum <- sum(scale_sum$Duration)
-    #     
-    #     # Total duration on target rate
-    #     trial <- trial %>% dplyr::filter(AOI %in% c(1,2,3,4,5,6,7,8))
-    #     
-    #     trial$CurrentGroupRating <- as.numeric(trial$CurrentGroupRating)
-    #     trial$AOI <- as.numeric(trial$AOI)
-    #     
-    #     target_sum <- trial %>% dplyr::filter(AOI == CurrentGroupRating)
-    #     target_sum <- sum(target_sum$Duration)
-    #     
-    #     
-    #     # Extract info to add to row
-    #     ID <- trial$ID[1]
-    #     Trial <- trial$Trial[1]
-    #     Picture <- trial$Picture[1]
-    #     Diagnosis <- trial$Group[1]
-    #     Session <- trial$Session[1]
-    #     RT <- trial$RT[1]
-    #     
-    #     # Create row
-    #     d <- tibble(dur_sum, scale_sum, target_sum, ID, Trial, Picture, Diagnosis, Session, RT) 
-    #     
-    #     # Combine with premade empty dataframe
-    #     if (nrow(df) == 0) {
-    #       df <- d}
-    #       else {
-    #         df <- rbind(df, d)
-    #         
-    #         }
-    #     }
-    # }
-    # 
-    #     
-    # 
-    # 
-    # 
-    # 
-    # 
-    # for (crt_ses in 1:length(unique(Fix$Session))){
-    #   
-    #   # make subset with only one session
-    #   round <- dplyr::filter(Fix, Session == crt_ses)
-    #   
-    #   if (round$Session[1] == 1){
-    #     # Run premade loop for session 1
-    #     
-    #   } else {
-    #     # make loop that can 'find' the groupratings for session 2.
-    #     
-    #   }
-    #   
-    # }
-
-to do
+27/04
 =====
 
-i need to figure out problem with 'filter\_'
+Move CurrentRating column from Saccade to Fixation data
+
+    # Make new column
+    Fix <- Fix %>% mutate(CurrentRating = NA)
+    Fix$CurrentRating <- as.numeric(Fix$CurrentRating)
+
+
+    # make empty dataframe
+    FixNew <- Fix[0,]
+
+
+    # # The loop I tried to change from trial to picture so it matches.
+    # for (crt_ses in 1:length(unique(Fix$Session))){
+    # 
+    #   # make subset with only one session
+    #   session <- dplyr::filter(Fix, Session == crt_ses)
+    #   
+    #   # create list of ID's
+    #   id_list <- unique(session$ID)
+    #   
+    #   for (crt_id in 1:length(id_list)){
+    #     
+    #     # take only one participant at a time
+    #     ID <- dplyr::filter(session, ID == id_list[crt_id]) # write crt_id
+    #     
+    #     pic_list <- unique(ID$Picture)
+    # 
+    #     
+    #     for (crt_pic in 1:length(pic_list)){
+    #       
+    #       # take one trial at a time from 1 to 153
+    #       trial <- dplyr::filter(ID, Picture == pic_list[crt_pic]) # should be crt_trial
+    #       
+    #       # Extract the givemn rating
+    #       Rating <- filter(Sac, Session == crt_ses & ID == id_list[crt_id] & Picture == pic_list[crt_pic])
+    #       Rating <- Rating$CurrentRating[1]
+    #       Rating <- as.numeric(Rating)
+    #       
+    #       
+    #       # Add to dataframe if it is not an NA.
+    #       if (!is.na(Rating) == TRUE){
+    #         trial$CurrentRating <- Rating
+    #       }
+    #       
+    #       
+    #       # Combine with premade empty dataframe
+    #       if (nrow(FixNew) == 0) {
+    #         FixNew <- trial}
+    #       else {
+    #         FixNew <- rbind(FixNew, trial)}
+    #       
+    #     }
+    #     
+    #   }
+    # 
+    # }
+
+
+    # Just check
+    check <- FixNew %>% filter(ID == 111 & Picture == 3)
+    check <- FixNew %>% filter(ID == 218 & Picture == 5)
+    check <- FixNew %>% filter(ID == 130 & Picture == 56)
+    check <- FixNew %>% filter(ID == 210 & Picture == 88)
+    rm(check)
+
+
+
+    # General comments:
+    # ID 205 only went through 116 trials in session 2
+    # ID138T0 has been removed as it is not a real trial (does not exist in Fix)
+    # There is only one row in ID136T146 - maybe should be removed
+
+    # Write to csv
+    write_csv(FixNew,"C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/FixNew.csv")
+
+
+    # Clean up Environment
+    rm(ID, session, trial)
+
+    ## Warning in rm(ID, session, trial): object 'ID' not found
+
+    ## Warning in rm(ID, session, trial): object 'session' not found
+
+    ## Warning in rm(ID, session, trial): object 'trial' not found
+
+27/04
+=====
+
+Try to extract relevant values from one trial
+
+    # # Select one trial 
+    # id <- 101
+    # ses <- 1
+    # pic <- 0
+    # 
+    # trial <- FixNew %>% dplyr::filter(ID == id & Session == ses & Picture == pic)
+    # trial_sac <- Sac %>% dplyr::filter(ID == id & Session == ses & Picture == pic)
+    # 
+    # 
+    # ### Info we extract directly
+    # ID <- trial$ID[1]
+    # Trial <- trial$Trial[1]
+    # Picture <- trial$Picture[1]
+    # Diagnosis <- trial$Group[1]
+    # Session <- trial$Session[1]
+    # RT <- trial$RT[1]
+    # 
+    # 
+    # ### info to be calculated
+    # 
+    # # Total duration sum of fixations and saccades
+    # FixTime <- sum(trial$Duration)
+    # SacTime <- sum(trial_sac$Duration)
+    # 
+    # 
+    # # Total duration sum of fixations on face
+    # FaceTime <- trial %>% 
+    #   mutate(AOI = as.factor(AOI)) %>% 
+    #   dplyr::filter(AOI == "Face")
+    # FaceTime <- sum(FaceTime$Duration)
+    # 
+    # 
+    # # Total duration sum of fixations on the whole Scale
+    # scale <- trial %>% dplyr::filter(AOI %in% c(1,2,3,4,5,6,7,8))
+    # ScaleTime <- sum(scale$Duration)
+    # 
+    # 
+    # # Total duration on target rate
+    # GR_Time <- scale %>% mutate(AOI = as.numeric(AOI)) %>% dplyr::filter(AOI == CurrentGroupRating | AOI == PreviousGroupRating)
+    # GR_Time <- sum(GR_Time$Duration)
+    # 
+    # 
+    # # Extract ratings - allow for NA's
+    # CurrentRating <- trial$CurrentRating[1]
+    # CurrentGroupRating <- trial$CurrentGroupRating[1]
+    # 
+    # if (is.na(Rating) == TRUE){
+    #   PreviousRating <- NA
+    # } else {
+    #     PreviousRating <- trial$PreviousRating[1]
+    #   }
+    # 
+    # if (is.na(Rating) == TRUE){
+    #   PreviousGroupRating <- NA
+    # } else {
+    #     PreviousGroupRating <- trial$PreviousGroupRating[1]
+    #   }
+    # 
+    # # Collect all info in a row
+    # d <- tibble(ID, Trial, Picture, Diagnosis, Session, 
+    #             RT, FixTime, SacTime, FaceTime, ScaleTime, GR_Time, 
+    #             CurrentRating, CurrentGroupRating, PreviousRating, PreviousGroupRating)
+    # 
+    # d$PreviousRating <- as.numeric(d$PreviousRating)
+    # d$PreviousGroupRating <- as.numeric(d$PreviousGroupRating)
+
+Extract relevant values for all trials in a loop
+
+    # # Read data with the new column
+    # FixNew <- read_csv("FixNew.csv", col_types = cols(
+    #       CurrentGroupRating = col_number(), 
+    #       PreviousGroupRating = col_number(), 
+    #       PreviousRating = col_number()))
+    # 
+    # 
+    # ## Wrap up in a big loop
+    # 
+    # 
+    # # Make container DF
+    # data <- tibble(ID = as.numeric(), 
+    #              Trial = as.numeric(), 
+    #              Picture = as.numeric(), 
+    #              Diagnosis = as.numeric(), 
+    #              Session = as.numeric(), 
+    #              RT = as.numeric(), 
+    #              FixTime = as.numeric(), 
+    #              SacTime = as.numeric(), 
+    #              FaceTime = as.numeric(), 
+    #              ScaleTime = as.numeric(), 
+    #              GR_Time = as.numeric(), 
+    #              CurrentRating = as.numeric(), 
+    #              CurrentGroupRating = as.numeric(), 
+    #              PreviousRating = as.numeric(), 
+    #              PreviousGroupRating = as.numeric())
+    # 
+
+    # # The loop
+    # for (crt_ses in 1:length(unique(FixNew$Session))){
+    # 
+    #   # make subset with only one session
+    #   session <- subset(FixNew, Session == crt_ses)
+    #   # create list of ID's
+    #   id_list <- unique(session$ID)
+    #   
+    #   
+    #   for (crt_id in 1:length(id_list)){
+    #     
+    #     # take only one participant at a time
+    #     id <- subset(session, ID == id_list[crt_id])
+    #     # create list of pic's
+    #     pic_list <- unique(id$Picture)
+    #     
+    # 
+    #     for (crt_pic in 1:length(pic_list)){
+    #       
+    #       # take one trial at a time from 1 to 153
+    #       trial <- subset(id, Picture == pic_list[crt_pic])
+    #       trial_sac <- subset(Sac, 
+    #                           ID == id_list[crt_id] & 
+    #                           Session == crt_ses & 
+    #                           Picture == pic_list[crt_pic])
+    #       
+    #       
+    #       ### Info we extract directly
+    #       ID <- trial$ID[1]
+    #       Trial <- trial$Trial[1]
+    #       Picture <- trial$Picture[1]
+    #       Diagnosis <- trial$Group[1]
+    #       Session <- trial$Session[1]
+    #       RT <- trial$RT[1]
+    #       
+    #       
+    #       ### info to be calculated
+    #       # Total duration sum of fixations and saccades
+    #       FixTime <- sum(trial$Duration)
+    #       SacTime <- sum(trial_sac$Duration)
+    #       
+    #       
+    #       # Total duration sum of fixations on face
+    #       FaceTime <- trial %>% 
+    #         mutate(AOI = as.factor(AOI)) %>% 
+    #         subset(AOI == "Face")
+    #       
+    #       FaceTime <- sum(FaceTime$Duration)
+    #       
+    #       
+    #       # Total duration sum of fixations on the whole Scale
+    #       scale <- trial %>% subset(AOI %in% c(1,2,3,4,5,6,7,8))
+    #       ScaleTime <- sum(scale$Duration)
+    #       
+    #       
+    #       # Total duration on target rate
+    #       GR_Time <- scale %>% 
+    #         mutate(AOI = as.numeric(AOI)) %>% 
+    #         subset(AOI == CurrentGroupRating | AOI == PreviousGroupRating)
+    #       
+    #       GR_Time <- sum(GR_Time$Duration)
+    #       
+    #       
+    #       # Extract ratings - allow for NA's
+    #       CurrentRating <- trial$CurrentRating[1]
+    #       CurrentGroupRating <- trial$CurrentGroupRating[1]
+    #       
+    #       if (is.na(Rating) == TRUE){
+    #         PreviousRating <- NA
+    #         } else {
+    #           PreviousRating <- trial$PreviousRating[1]
+    #           }
+    #       
+    #       if (is.na(Rating) == TRUE){
+    #         PreviousGroupRating <- NA
+    #         } else {
+    #           PreviousGroupRating <- trial$PreviousGroupRating[1]
+    #           }
+    #       
+    #       # Collect all info in a row
+    #       row <- tibble(ID, Trial, Picture, Diagnosis, Session, 
+    #             RT, FixTime, SacTime, FaceTime, ScaleTime, GR_Time, 
+    #             CurrentRating, CurrentGroupRating, PreviousRating, PreviousGroupRating)
+    #       
+    #       row$PreviousRating <- as.numeric(row$PreviousRating)
+    #       row$PreviousGroupRating <- as.numeric(row$PreviousGroupRating)
+    #       
+    #       
+    #       # Combine with premade empty dataframe
+    #       if (nrow(data) == 0) {
+    #         data <- row
+    #         } else {
+    #         data <- rbind(data, row)}
+    #       
+    #     }
+    #     
+    #   }
+    # 
+    # }
+    # 
+
+
+
+    # # Write to csv
+    # write_csv(data,"C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/data_preprocessed.csv")
+    # 
+    # # Check it out
+    # summary(data)
+    # 
+    # # Those should be removed from data.
+    # check <- FixNew %>% filter(ID == 136 & Trial == 146 & Picture == 63) # weird one row
+    # check <- FixNew %>% filter(ID == 211 & Picture == 99) # missing 'CurrentRating' values for session 2
+    # 
+    # 
+    # 
+    # 
+    # # Clean up Environment
+    # rm(id,row,scale,session,trial,trial_sac, check)
+
+28/04 Explore hypotheses
+========================
+
+    # set working directory
+    setwd("C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/")
+
+    # packages 
+    library(pacman)
+    pacman::p_load(tidyverse, patchwork, readr, brms, ggthemes)
+
+    # Read preprocessed data
+    d <- read_csv("data_preprocessed.csv", col_types = cols(
+          CurrentGroupRating = col_number(), 
+          PreviousGroupRating = col_number(), 
+          PreviousRating = col_number()))
+
+
+    d <- d %>% mutate(
+      Session = as.factor(Session),
+      Diagnosis = as.factor(Diagnosis)
+    )
+
+Plot
+----
+
+    # Illustration of the FaceTime data by diagnosis and session
+    ggplot(data = d) + 
+      geom_boxplot(aes(x = Session, y = FaceTime)) +
+      
+      labs(
+        title = "Fixation Time on AOI Face", 
+        subtitle = "Divided by TD(0) and SCZ(1)",
+        caption = "Data source: Simonsen et al.") + 
+      
+      theme_bw() + theme(legend.background = element_rect(fill="lightblue")) +
+      scale_colour_pander() + scale_fill_pander() +
+      ylab("Time spent fixating on Face in ms") +
+      theme_pander() + 
+      theme(text = element_text(family = "Times"),
+            legend.position = "none") +
+      facet_wrap(.~ Diagnosis)
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_stringMetric, as.graphicsAnnot(x$label)): font
+    ## family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call.graphics(C_text, as.graphicsAnnot(x$label), x$x,
+    ## x$y, : font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call.graphics(C_text, as.graphicsAnnot(x$label), x$x,
+    ## x$y, : font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+    ## Warning in grid.Call(C_textBounds, as.graphicsAnnot(x$label), x$x, x$y, :
+    ## font family not found in Windows font database
+
+![](sockul-look-through-data_files/figure-markdown_strict/unnamed-chunk-7-1.png)
+
+    ggplot(data = d) + 
+      geom_boxplot(aes(x = Diagnosis, y = FaceTime)) +
+      
+      labs(
+        title = "Fixation Time on AOI Face", 
+        subtitle = "Divided by TD(0) and SCZ(1)",
+        caption = "Data source: Simonsen et al.") + 
+      ylab("Time spent fixating on Face in ms") +
+      
+      theme_bw() + theme(legend.background = element_rect(fill="lightblue"))
+
+![](sockul-look-through-data_files/figure-markdown_strict/unnamed-chunk-7-2.png)
+
+    # Time spent fixating by group rating - We might have to standardize because the reaction times could be shorter
+    ggplot(data = d) + 
+      geom_boxplot(aes(x = Session, y = GR_Time, fill = Diagnosis)) +
+      
+      labs(
+        title = "Fixation Time on Group Rating", 
+        subtitle = "Divided by session",
+        caption = "Data source: Simonsen et al.") + 
+      ylab("Time spent fixating on group rating in ms") +
+      
+      theme_bw() + theme(legend.background = element_rect(fill="lightblue"))
+
+![](sockul-look-through-data_files/figure-markdown_strict/unnamed-chunk-7-3.png)
+
+    # Checking out reaction times 
+    ggplot(data = d) + 
+      geom_boxplot(aes(x = Session, y = RT, fill = Diagnosis)) +
+      
+      labs(
+        title = "Reaction Time by Trial", 
+        subtitle = "Divided by session and diagnosis",
+        caption = "Data source: Simonsen et al.") + 
+      ylab("RT") +
+      
+      theme_bw() + theme(legend.background = element_rect(fill="lightblue"))
+
+![](sockul-look-through-data_files/figure-markdown_strict/unnamed-chunk-7-4.png)
+
+Face model
+----------
+
+    # # formula
+    # formula <- bf(FaceTime ~ 0 + Diagnosis + (1|ID) + (1|Picture))
+    # 
+    # # Set priors
+    # get_prior(formula, d, family = gaussian())
+    # 
+    # prior <- c(
+    #   prior(normal(3000, 100), class = b),
+    #   prior(normal(10, 150), class = sd),
+    #   prior(normal(100, 1500), class = sigma) 
+    # )
+    # 
+    # 
+    # 
+    # # Run model based on priors alone
+    # model0 <- brm(
+    #   formula,
+    #   d,
+    #   family = gaussian(),
+    #   prior = prior,
+    #   sample_prior = "only",
+    #   chains = 2,
+    #   cores = 2
+    # )
+    # 
+    # pp_check(model1, nsamples=100)
+    # 
+    # model1 <- brm(
+    #   formula,
+    #   d,
+    #   family = gaussian(),
+    #   prior = prior0,
+    #   sample_prior = T,
+    #   chains = 2,
+    #   cores = 2
+    # )
+    # 
+    # pp_check(model1, nsamples=100)
+    # 
+    # 
+    # # Hypothesis testing
+    # plot(hypothesis(NS_m0, "DiagnosisASD > 0")) # we expect that ASD beta (from TD to ASD) is bigger than 0.
+    # hypothesis(NS_m0, "DiagnosisASD > 0") 
+    # # evid.Ratio: 6 times as much evidence that the difference is there, though effect = not strong
+    # 
+    # summary(model1.1)
+    # # Pitch variability for intercept (diagnosis TD) is 0.17
+    # # slope from TD to ASD is 0.08
+    # 
+    # # chain plot
+    # plot(NS_m0)
