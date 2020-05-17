@@ -1,0 +1,1081 @@
+---
+title: "Portfolio 5"
+author: "Aske Qvist"
+date: "15 May 2020"
+output: md_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Set working directory and load packages 
+```{r}
+# set working directory
+setwd("C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/")
+
+# packages 
+library(pacman)
+pacman::p_load(tidyverse, patchwork, readr, rethinking, brms, bayesplot, ggthemes, patchwork)
+
+# import data
+Sac <- read_csv("SaccadesDV.csv", 
+    col_types = cols(
+      CurrentGroupRating = col_number(), 
+      CurrentRating = col_number(), 
+      PreviousGroupRating = col_number(), 
+      PreviousRating = col_number()))
+
+
+Fix <- read_csv("FixationsDV.csv", 
+    col_types = cols(
+      CurrentGroupRating = col_number(), 
+      PreviousGroupRating = col_number(), 
+      PreviousRating = col_number()))
+
+
+```
+
+
+# Move CurrentRating to Fix data
+```{r}
+# Make new column
+Fix <- Fix %>% mutate(CurrentRating = NA)
+Fix$CurrentRating <- as.numeric(Fix$CurrentRating)
+
+
+# make empty dataframe
+FixNew <- Fix[0,]
+
+# The loop I tried to change from trial to picture so it matches.
+for (crt_ses in 1:length(unique(Fix$Session))){
+
+  # make subset with only one session
+  session <- dplyr::filter(Fix, Session == crt_ses)
+
+  # create list of ID's
+  id_list <- unique(session$ID)
+
+  for (crt_id in 1:length(id_list)){
+
+    # take only one participant at a time
+    ID <- dplyr::filter(session, ID == id_list[crt_id]) # write crt_id
+
+    trial_list <- unique(ID$Trial)
+
+
+    for (crt_tr in 1:length(trial_list)){
+
+      # take one trial at a time from 1 to 153
+      trial <- dplyr::filter(ID, Trial == trial_list[crt_tr]) # should be crt_trial
+
+      # Extract the given rating
+      Rating <- filter(Sac, Session == crt_ses & ID == id_list[crt_id] & Trial == trial_list[crt_tr])
+      Rating <- Rating$CurrentRating[1]
+      Rating <- as.numeric(Rating)
+
+
+      # Add to dataframe if it is not an NA.
+      if (!is.na(Rating) == TRUE){
+        trial$CurrentRating <- Rating
+      }
+
+
+      # Combine with premade empty dataframe
+      if (nrow(FixNew) == 0) {
+        FixNew <- trial}
+      else {
+        FixNew <- rbind(FixNew, trial)}
+
+    }
+
+  }
+
+}
+
+# Write to csv
+write_csv(FixNew,"C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/FixNew.csv")
+
+# Clean up Environment
+rm(ID, session, trial)
+
+
+```
+
+
+# Extract relevant values for all trials
+```{r}
+
+# Read data with the new column
+FixNew <- read_csv("FixNew.csv", col_types = cols(
+       CurrentGroupRating = col_number(),
+       PreviousGroupRating = col_number(),
+       PreviousRating = col_number()))
+
+
+# Make container DF
+data <- tibble(ID = as.numeric(),
+              Trial = as.numeric(),
+              Picture = as.numeric(),
+              Diagnosis = as.numeric(),
+              Session = as.numeric(),
+              RT = as.numeric(),
+              FixTime = as.numeric(),
+              SacTime = as.numeric(),
+              FaceTime = as.numeric(),
+              ScaleTime = as.numeric(),
+              GR_Time = as.numeric(),
+              FirstRateTime = as.numeric(),
+              CurrentRating = as.numeric(),
+              CurrentGroupRating = as.numeric(),
+              PreviousRating = as.numeric(),
+              PreviousGroupRating = as.numeric())
+
+# The loop
+for (crt_ses in 1:length(unique(FixNew$Session))){
+
+   # make subset with only one session
+   session <- subset(FixNew, Session == crt_ses)
+   # create list of ID's
+   id_list <- unique(session$ID)
+
+
+   for (crt_id in 1:length(id_list)){
+
+     # take only one participant at a time
+     id <- subset(session, ID == id_list[crt_id])
+     # create list of pic's
+     trial_list <- unique(id$Trial)
+
+
+     for (crt_tr in 1:length(trial_list)){
+
+       # take one trial at a time from 1 to 153
+       
+       # fixation data
+       trial <- subset(id, Trial == trial_list[crt_tr])
+       
+       if (("subject_rating_start" %in% trial$CURRENT_FIX_MSG_TEXT_1) == TRUE){
+         preremove <- trial %>% filter(CURRENT_FIX_MSG_TEXT_1 == "subject_rating_start")
+         preremove <- as.numeric(preremove$FixationN)
+         trial <- subset(trial, FixationN >= preremove)
+         }
+       
+       
+       # saccade data
+       trial_sac <- subset(Sac,
+                           ID == id_list[crt_id] &
+                           Session == crt_ses &
+                           Trial == trial_list[crt_tr])
+       # Remove all saccades before start
+       if (("subject_rating_start" %in% trial_sac$Message) == TRUE){
+         preremove2 <- trial_sac %>% filter(Message == "subject_rating_start")
+         preremove2 <- as.numeric(preremove2$SaccadeN)
+         trial_sac <- subset(trial_sac, SaccadeN >= preremove2)
+         }
+
+
+       ### Info we extract directly
+       ID <- trial$ID[1]
+       Trial <- trial$Trial[1]
+       Picture <- trial$Picture[1]
+       Diagnosis <- trial$Group[1]
+       Session <- trial$Session[1]
+       RT <- trial$RT[1]
+
+
+       ### info to be calculated
+       # Total duration sum of fixations and saccades
+       FixTime <- sum(trial$Duration)
+       SacTime <- sum(trial_sac$Duration)
+
+
+       # Total duration sum of fixations on face
+       FaceTime <- trial %>%
+         mutate(AOI = as.factor(AOI)) %>%
+         subset(AOI == "Face")
+
+       FaceTime <- sum(FaceTime$Duration)
+
+
+       # Total duration sum of fixations on the whole Scale
+       scale <- trial %>% subset(AOI %in% c(1,2,3,4,5,6,7,8))
+       ScaleTime <- sum(scale$Duration)
+
+
+       # Total duration on target rate (group rating)
+       GR_Time <- scale %>%
+         mutate(AOI = as.numeric(AOI)) %>%
+         subset(AOI == CurrentGroupRating | AOI == PreviousGroupRating)
+
+       GR_Time <- sum(GR_Time$Duration)
+       
+       # Time spent on first rating 
+       if (crt_ses == 1){
+         FirstRateTime <- scale %>%
+         mutate(AOI = as.numeric(AOI)) %>%
+         subset(AOI == CurrentRating)
+         FirstRateTime <- sum(FirstRateTime$Duration)
+       } else {
+         FirstRateTime <- scale %>%
+         mutate(AOI = as.numeric(AOI)) %>%
+         subset(AOI == PreviousRating)
+         FirstRateTime <- sum(FirstRateTime$Duration)
+       }
+       
+       
+       # Current rating
+       if (is.na(trial$CurrentRating[1]) == TRUE){
+         CurrentRating <- NA
+         } else {
+           CurrentRating <- trial$CurrentRating[1]
+           }
+       
+       # Current group rating
+       if (is.na(trial$CurrentGroupRating[1]) == TRUE){
+         CurrentGroupRating <- NA
+         } else {
+           CurrentGroupRating <- trial$CurrentGroupRating[1]
+           }
+       
+       # Previous rating
+       if (is.na(trial$PreviousRating[1]) == TRUE){
+         PreviousRating <- NA
+         } else {
+           PreviousRating <- trial$PreviousRating[1]
+           }
+       
+       # Previous Group Rating
+       if (is.na(trial$PreviousGroupRating[1]) == TRUE){
+         PreviousGroupRating <- NA
+         } else {
+           PreviousGroupRating <- trial$PreviousGroupRating[1]
+           }
+       
+
+       # Collect all info in a row
+       row <- tibble(ID, Trial, Picture, Diagnosis, Session,
+             RT, FixTime, SacTime, FaceTime, ScaleTime, GR_Time, FirstRateTime,
+             CurrentRating, CurrentGroupRating, PreviousRating, PreviousGroupRating)
+
+       row$CurrentRating <- as.numeric(row$CurrentRating)
+       row$CurrentGroupRating <- as.numeric(row$CurrentGroupRating)
+       row$PreviousRating <- as.numeric(row$PreviousRating)
+       row$PreviousGroupRating <- as.numeric(row$PreviousGroupRating)
+
+
+       # Combine with premade empty dataframe
+       if (nrow(data) == 0) {
+         data <- row
+         } else {
+         data <- rbind(data, row)}
+
+     }
+
+   }
+
+ }
+
+# Remove trial that does not make any sense
+data <- data[!(data$ID == 136 & data$Trial == 146 & data$Picture == 63),]
+
+# Write to csv
+write_csv(data,"C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/data_preprocessed.csv")
+
+# Clean up Environment
+rm(id,row,scale,session,trial,trial_sac)
+
+```
+
+
+# Hypotheses
+```{r}
+# Read preprocessed data
+d <- read_csv("data_preprocessed.csv", col_types = cols(
+      CurrentGroupRating = col_number(), 
+      PreviousGroupRating = col_number(), 
+      PreviousRating = col_number()))
+
+```
+
+
+## Hypothesis 1
+```{r}
+
+# Tidy up data for running the model
+d <- d %>% mutate(
+  GR_Time_Scale = GR_Time / ScaleTime,
+  Diagnosis = as.factor(Diagnosis),
+  ID = as.factor(ID),
+  Trial = as.factor(Trial),
+  Picture = as.factor(Picture),
+  Session = as.factor(Session)
+)
+
+d$GR_Time_Scale <- ifelse(d$GR_Time_Scale == 1, 0.99,d$GR_Time_Scale)
+d$GR_Time_Scale <- ifelse(d$GR_Time_Scale == 0, 0.01,d$GR_Time_Scale)
+
+
+d %>% group_by(Session) %>% summarise(
+  mean_GR = mean(GR_Time_Scale, na.rm = T)
+)
+
+## First model
+# formula and priors
+formula1.1 <- bf(GR_Time_Scale ~ 1 + (1 + Session|ID) + (1|Picture))
+
+get_prior(formula1.1, d, family = "beta")
+
+prior1.1 <- c(
+  prior(normal(-.8, 0.5), class = Intercept),
+  prior(normal(0, 8), class = phi),
+  prior(normal(0, 0.2), class = sd),
+  prior(lkj(5), class = cor)
+)
+
+# Run model based on priors alone
+priormodel1.1 <- brm(
+   formula1.1,
+   d,
+   family = "beta",
+   prior = prior1.1,
+   sample_prior = "only",
+   iter=200,
+   warmup=100,
+   chains = 1,
+   cores = 1
+   )
+
+pp_check(priormodel1.1, nsamples=100)
+
+postmodel1.1 <- brm(
+  formula1.1,
+  d,
+  family = "beta",
+  prior = prior1.1,
+  sample_prior = T,
+  iter=2000,
+  warmup=1000,
+  chains = 2,
+  cores = 4
+)
+
+pp_check(postmodel1.1, nsamples=100)
+summary(postmodel1.1)
+
+
+
+## Second model
+
+# formula
+formula1.2 <- bf(GR_Time_Scale ~ 0 + Session + (1 + Session|ID) + (1|Picture))
+
+get_prior(formula1.2, d, family = "beta")
+
+prior1.2 <- c(
+  prior(normal(-0.8, 0.5), class = b),
+  prior(normal(0, 8), class = phi),
+  prior(normal(0,0.2), class = sd),
+  prior(lkj(5), class = cor)
+)
+
+# Run model based on priors alone
+priormodel1.2 <- brm(
+   formula1.2,
+   d,
+   family = "beta",
+   prior = prior1.2,
+   sample_prior = "only",
+   iter= 200,
+   warmup= 100,
+   chains = 1,
+   cores = 1
+   )
+ 
+pp_check(priormodel1.2, nsamples=100)
+ 
+postmodel1.2 <- brm(
+  formula1.2,
+   d,
+   family = "beta",
+   prior = prior1.2,
+   sample_prior = T,
+   iter=2000,
+   warmup=1000,
+   chains = 2,
+   cores = 4
+   )
+ 
+pp_check(postmodel1.2, nsamples=100)
+summary(postmodel1.2)
+
+
+
+
+## Third model
+
+# formula
+formula1.3 <- bf(GR_Time_Scale ~ 0 + Session:Diagnosis + (1 + Session|ID) + (1|Picture))
+
+get_prior(formula1.3, d, family = "beta")
+
+prior1.3 <- c(
+  prior(normal(-0.8, 0.5), class = b),
+  prior(normal(0, 8), class = phi),
+  prior(normal(0, 0.2), class = sd),
+  prior(lkj(5), class = cor)
+)
+
+# Run model based on priors alone
+priormodel1.3 <- brm(
+   formula1.3,
+   d,
+   family = "beta",
+   prior = prior1.3,
+   sample_prior = "only",
+   iter=200,
+   warmup=100,
+   chains = 1,
+   cores = 1
+   )
+ 
+pp_check(priormodel1.3, nsamples=100)
+
+ 
+postmodel1.3 <- brm(
+   formula1.3,
+   d,
+   family = "beta",
+   prior = prior1.3,
+   sample_prior = T,
+   iter=1000,
+   warmup=500,
+   chains = 2,
+   cores = 4
+   )
+ 
+pp_check(postmodel1.3, nsamples=100)
+summary(postmodel1.3)
+
+
+
+### Summaries for Hypothesis 1 ###
+pacman::p_load(tidybayes)
+# exp() converts log-odds to odds, and then we convert odds to probability ratio, by dividing by 1+odds
+
+# Summary for model 1
+summary(postmodel1.1)
+(exp(fixef(postmodel1.1)))/(1+exp(fixef(postmodel1.1))) 
+
+#Summary for model 2
+summary(postmodel1.2)
+(exp(fixef(postmodel1.2)))/(1+exp(fixef(postmodel1.2)))
+
+#Summary for model 3
+summary(postmodel1.3)
+(exp(fixef(postmodel1.3)))/(1+exp(fixef(postmodel1.3)))
+
+
+
+## Model Compare For Hypothesis 1
+postmodel1.1 <- add_criterion(postmodel1.1, criterion = c("waic","loo"), reloo = T)
+postmodel1.2 <- add_criterion(postmodel1.2, criterion = c("waic","loo"), reloo = T)
+postmodel1.3 <- add_criterion(postmodel1.3, criterion = c("waic","loo"), reloo = T)
+
+# Loo compare
+H1_compare <- loo_compare(postmodel1.1, postmodel1.2, postmodel1.3)
+
+# Loo model weights
+H1_weights <- loo_model_weights(postmodel1.1, postmodel1.2, postmodel1.3)
+
+
+
+
+### Hypothesis testing ###
+
+hypothesis(postmodel1.2, "Session1 < Session2")
+hypothesis(postmodel1.2, "Session1 > Session2")
+plot(hypothesis(postmodel1.2, "Session1 < Session2"))
+plot(hypothesis(postmodel1.2, "Session1 > Session2"))
+
+hypothesis(postmodel1.3, "Session1:Diagnosis1 > Session1:Diagnosis0 ")
+hypothesis(postmodel1.3, "Session2:Diagnosis1 > Session2:Diagnosis0 ")
+plot(hypothesis(postmodel1.3, "Session2:Diagnosis1 > Session2:Diagnosis0 "))
+
+
+
+# Plotting effects from hypotheses
+conditional_effects(postmodel1.2)
+conditional_effects(postmodel1.3)
+
+
+
+
+```
+
+## Hypothesis 2
+```{r}
+
+## First model
+
+
+# formula
+formula2.1 <- bf(FR_Time_Scale ~ 0 + Session + (1+Session|ID) + (1|Picture))
+
+get_prior(formula2.1, d, family = "beta")
+
+prior2.1 <- c(
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 10), class = phi),
+  prior(normal(0, 0.2), class = sd),
+  prior(lkj(5), class = cor)
+)
+
+# Run model based on priors alone
+priormodel2.1 <- brm(
+   formula2.1,
+   d,
+   family = "beta",
+   prior = prior2.1,
+   sample_prior = "only",
+   iter=100,
+   warmup=50,
+   chains = 1,
+   cores = 4
+   )
+ 
+pp_check(priormodel2.1, nsamples=50)
+ 
+postmodel2.1 <- brm(
+   formula2.1,
+   d,
+   family = "beta",
+   prior = prior2.1,
+   sample_prior = T,
+   iter=2000,
+   warmup=1000,
+   chains = 2,
+   cores = 4
+   )
+ 
+pp_check(postmodel2.1, nsamples=100)
+summary(postmodel2.1)
+
+
+
+## Second model
+
+# formula
+formula2.2 <- bf(FR_Time_Scale ~ 0 + Session:Diagnosis + (1+Session|ID) + (1|Picture))
+
+get_prior(formula2.2, d, family = "beta")
+
+prior2.2 <- c(
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 10), class = phi),
+  prior(normal(0, 0.2), class = sd),
+  prior(lkj(5), class = cor)
+)
+
+# Run model based on priors alone
+priormodel2.2 <- brm(
+   formula2.2,
+   d,
+   family = "beta",
+   prior = prior2.2,
+   sample_prior = "only",
+   iter=500,
+   warmup=250,
+   chains = 1,
+   cores = 4
+   )
+ 
+pp_check(priormodel2.2, nsamples=100)
+ 
+postmodel2.2 <- brm(
+  formula2.2,
+   d,
+   family = "beta",
+   prior = prior2.2,
+   sample_prior = T,
+   iter=2000,
+   warmup=1000,
+   chains = 2,
+   cores = 4
+   )
+ 
+pp_check(postmodel2.2, nsamples=100)
+summary(postmodel2.2)
+
+
+
+
+### Summaries for Hypothesis 2 ###
+
+# Summary for model 1
+summary(postmodel2.1)
+(exp(fixef(postmodel2.1)))/(1+exp(fixef(postmodel2.1)))
+
+
+#Summary for model 2
+summary(postmodel2.2)
+(exp(fixef(postmodel2.2)))/(1+exp(fixef(postmodel2.2)))
+
+
+
+## Model Compare
+postmodel2.1 <- add_criterion(postmodel2.1, criterion = c("waic","loo"))
+postmodel2.2 <- add_criterion(postmodel2.2, criterion = c("waic","loo"))
+
+loo_compare(postmodel2.1, postmodel2.2)
+loo_model_weights(postmodel2.1, postmodel2.2)
+
+
+### Hypothesis testing ###
+
+#"Across groups, fixations on first own rating, relative to total time on scale will be shorter in session 2."
+hypothesis(postmodel2.1, "Session1 > Session2")
+plot(hypothesis(postmodel2.1, "Session1 > Session2"))
+
+hypothesis(postmodel2.2, "Session1:Diagnosis1 > Session2:Diagnosis1")
+hypothesis(postmodel2.2, "Session1:Diagnosis0 > Session2:Diagnosis0")
+
+plot(hypothesis(postmodel2.2, "Session1:Diagnosis1 > Session2:Diagnosis1"))
+plot(hypothesis(postmodel2.2, "Session1:Diagnosis0 > Session2:Diagnosis0"))
+
+
+### Hypothesis testing ###
+
+# "The ratio between fixation time spent on first rating and fixation time spent on the entire scale, can be predicted by session interacting with diagnosis. We expect Session2:Diagnosis1 having a higher fixation time on previous rating (relative to scale time), compared to Session2:Diagnosis0"
+hypothesis(postmodel2.2, "Session2:Diagnosis1 > Session2:Diagnosis0 ")
+plot(hypothesis(postmodel2.2, "Session2:Diagnosis1 > Session2:Diagnosis0 "))
+
+
+# Effects visualized
+conditional_effects(postmodel2.1)
+conditional_effects(postmodel2.2)
+
+
+
+
+```
+
+## Hypothesis 3
+```{r}
+
+
+# First model
+formula3.1 <- bf(FaceTimeSek ~ 1 + Session + (1 + Session | ID) + (1 | Picture))
+
+get_prior(formula3.1, d, family = lognormal())
+
+prior3.1 <- c(
+  prior(normal(1.1, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.2), class = sigma),
+  prior(lkj(5), class= cor)
+)
+
+
+# Run model based on priors alone
+priormodel3.1 <- brm(
+   formula3.1,
+   d,
+   family = lognormal(),
+   prior = prior3.1,
+   sample_prior = "only",
+   iter = 100,
+   warmup = 50,
+   chains = 1,
+   cores = 4
+)
+
+pp_check(priormodel3.1, nsamples=50)
+
+postmodel3.1 <- brm(
+   formula3.1,
+   d,
+   family = lognormal(),
+   prior = prior3.1,
+   sample_prior = T,
+   iter = 2000,
+   warmup = 1000,
+   chains = 2,
+   cores = 4
+)
+
+summary(postmodel3.1)
+pp_check(postmodel3.1, nsamples=100)
+
+
+# Second model
+formula3.2 <- bf(FaceTimeSek ~ 0 + Session + Diagnosis + (1 + Session | ID) + (1 | Picture))
+
+get_prior(formula3.2, d, family = lognormal())
+
+prior3.2 <- c(
+  prior(normal(1.1, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.2), class = sigma),
+  prior(lkj(5), class= cor)
+)
+
+# Run model based on priors alone
+priormodel3.2 <- brm(
+   formula3.2,
+   d,
+   family = lognormal(),
+   prior = prior3.2,
+   sample_prior = "only",
+   iter = 100,
+   warmup = 50,
+   chains = 1,
+   cores = 4
+)
+
+pp_check(priormodel3.2, nsamples=50)
+
+postmodel3.2 <- brm(
+   formula3.2,
+   d,
+   family = lognormal(),
+   prior = prior3.2,
+   sample_prior = T,
+   iter = 2000,
+   warmup = 1000,
+   chains = 2,
+   cores = 4
+)
+
+summary(postmodel3.2)
+pp_check(postmodel3.2, nsamples=100)
+
+
+
+### Summaries for Hypothesis 3 ###
+
+# Summary for model 1
+summary(postmodel3.1)
+(exp(fixef(postmodel3.1)))/(1+exp(fixef(postmodel3.1)))
+
+#Summary for model 2
+summary(postmodel3.2)
+(exp(fixef(postmodel3.2)))/(1+exp(fixef(postmodel3.2)))
+
+
+## Model Compare
+postmodel3.1 <- add_criterion(postmodel3.1, criterion = c("waic","loo"))
+postmodel3.2 <- add_criterion(postmodel3.2, criterion = c("waic","loo"))
+
+loo_compare(postmodel3.1, postmodel3.2)
+loo_model_weights(postmodel3.1, postmodel3.2)
+
+
+
+### Hypothesis testing ###
+
+#"Session 2 will have lower FaceTimes than Session 1"
+hypothesis(postmodel3.1, "0 > Session2")
+plot(hypothesis(postmodel3.1, "0 > Session2"))
+
+# "Diagnosis SCZ will have lower FaceTimes than TD's for Session 1, and Session 2, respectively"
+hypothesis(postmodel3.2, "Diagnosis1 < 0")
+plot(hypothesis(postmodel3.2, "Diagnosis1 < 0"))
+
+
+### Effects visualized ###
+conditional_effects(postmodel3.1)
+conditional_effects(postmodel3.2)
+
+
+```
+
+## Hypothesis 4
+
+
+### Preprocess data for running re-analysis (H4) - Extract Social conformity scores
+
+Subset data
+```{r}
+
+# Subset for session 2 as trials for session two have all relevant information (from both sessions)
+d2 <- d %>% subset(Session == 2) %>% mutate(
+  Change = CurrentRating - PreviousRating,
+  Feedback = PreviousGroupRating - PreviousRating
+)
+
+
+```
+
+Run 1 model
+```{r}
+
+# formula. I add rating from session 1 because some rating difference is constrained by the first rating.
+SocConformity1 <- bf(Change ~ 1 + PreviousRating + Feedback + 
+                         (1 + PreviousRating + Feedback | ID) + 
+                         (1 + PreviousRating + Feedback | Picture))
+
+# Set priors
+get_prior(SocConformity1, d2, family = gaussian())
+
+priorSC1 <- c(
+  prior(normal(0, 1), class = Intercept), # pretty broad prior for the intercept
+  prior(normal(0, 0.2), class = b), # more conservative prior, we dont wanna overfit the data
+  prior(normal(0, 0.2), class = sd),
+  prior(normal(0, 0.2), class = sigma),
+  prior(lkj(5), class = cor)
+)
+
+
+# Run prior model
+priormodelSC1 <- brm(
+   SocConformity1,
+   d2,
+   family = gaussian(),
+   prior = priorSC1,
+   sample_prior = "only",
+   chains = 2,
+   cores = 4,
+   iter = 4000,
+   control = list(
+     adapt_delta = 0.99,
+     max_treedepth = 20)
+)
+
+# prior predictive checks
+pp_check(priormodelSC1, nsamples=100)
+
+
+# Run model
+postmodelSC1 <- brm(
+  SocConformity1,
+  d2,
+  family = gaussian(),
+  prior = priorSC1,
+  sample_prior = T,
+  chains = 2,
+  cores = 4,
+  iter = 4000,
+  control = list(
+   adapt_delta = 0.99,
+   max_treedepth = 20)
+)
+
+
+### Check 1 model
+summary(postmodelSC1)
+pp_check(postmodelSC1, nsamples=100)
+fixef(postmodelSC1)
+
+
+```
+
+Extract conformity scores
+```{r}
+
+# Extract betas for each ID
+PopMean <- fixef(postmodelSC1)[3,1]
+
+ID_divergence <- ranef(postmodelSC1)
+ID_divergence <- ID_divergence[["ID"]]
+
+ConformityScores <- ID_divergence %>% as.data.frame() %>% select(Estimate.Feedback) %>% rename(SocialConformity = Estimate.Feedback) %>% mutate(SocialConformity = SocialConformity + PopMean)
+
+
+
+### THE LOOP ###
+
+# Make container DF
+d4 <- tibble(ID = as.numeric(),
+              Picture = as.numeric(),
+              Diagnosis = as.numeric(),
+              FaceTime1 = as.numeric(),
+              FaceTime2 = as.numeric(),
+              SocialConformity = as.numeric())
+
+
+# Remove data from participants only appearing in session 1
+
+id_list <- unique(d2$ID) # change back to d2
+dd <- subset(d, ID %in% c(id_list))
+
+
+
+for (crt_id in 1:length(unique(dd$ID))){
+
+   id <- subset(dd, ID == id_list[crt_id])
+   
+   pic_list <- unique(id$Picture)
+   
+   
+   for (crt_pic in 1:length(pic_list)){
+     
+     ID <- id_list[crt_id]
+     Picture <- pic_list[crt_pic]
+     Diagnosis <- id$Diagnosis[1]
+     
+     FaceTime1 <- id %>% subset(Session == 1 & Picture == crt_pic)
+     FaceTime1 <- FaceTime1$FaceTime
+     
+     FaceTime2 <- id %>% subset(Session == 2 & Picture == crt_pic)
+     FaceTime2 <- FaceTime2$FaceTime
+     
+     SocialConformity <- round(ConformityScores[crt_id,1], 5)
+     
+     # Collect all info in a row
+     row <- tibble(ID, Picture, Diagnosis,FaceTime1, FaceTime2, SocialConformity)
+     
+     # Combine with premade empty dataframe
+     
+     if (nrow(d4) == 0) {
+       d4 <- row
+     } else {
+         d4 <- rbind(d4, row)
+     }
+   }
+}
+
+
+```
+
+### Running the hypothesis
+```{r}
+
+# Mutate data
+d4 <- d4 %>% mutate(
+  FaceTime1_sek = FaceTime1/1000 + 0.01,
+  FaceTime2_sek = FaceTime2/1000 + 0.01,
+  SocialConformityM = SocialConformity - mean(SocialConformity))
+
+
+
+### For Face duration in session 2
+
+# Formula 1
+formula4.1 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + (1|ID) + (1|Picture) ) # + (1|Picture)
+
+get_prior(formula4.1, d4, family = lognormal())
+prior4.1 <- c(
+  prior(normal(1.1, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.20), class = sigma))
+
+
+priormodel4.1 <- brm(
+   formula4.1,
+   d4,
+   family = lognormal(),
+   prior = prior4.1,
+   sample_prior = "only",
+   chains = 1,
+   cores = 1,
+   iter = 200,
+   warmup = 100
+)
+
+pp_check(priormodel4.1, nsamples=80)
+
+postmodel4.1 <- brm(
+  formula4.1,
+  d4,
+  family = lognormal(),
+  prior = prior4.1,
+  sample_prior = T,
+  chains = 2,
+  cores = 2,
+  iter = 2000,
+  warmup = 1000
+)
+
+
+pp_check(postmodel4.1, nsamples=80)
+summary(postmodel4.1)
+
+
+
+# Formula 2
+formula4.2 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + Diagnosis + (1|ID) + (1|Picture)) 
+
+get_prior(formula4.2, d4, family = lognormal())
+prior4.2 <- c(
+  prior(normal(1.1, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.2), class = sigma))
+
+
+priormodel4.2 <- brm(
+   formula4.2,
+   d4,
+   family = lognormal(),
+   prior = prior4.2,
+   sample_prior = "only",
+   chains = 1,
+   cores = 1,
+   iter = 200,
+   warmup = 100
+)
+
+pp_check(priormodel4.2, nsamples=80)
+
+postmodel4.2 <- brm(
+  formula4.2,
+  d4,
+  family = lognormal(),
+  prior = prior4.2,
+  sample_prior = T,
+  chains = 2,
+  cores = 2,
+  iter = 2000,
+  warmup = 1000
+)
+
+
+pp_check(postmodel4.2, nsamples=100)
+summary(postmodel4.2)
+
+
+
+### Run comparison ###
+postmodel4.1 <- add_criterion(postmodel4.1,criterion="loo")
+postmodel4.2 <- add_criterion(postmodel4.2,criterion="loo")
+
+loo_compare(postmodel4.1,postmodel4.2)
+loo_model_weights(postmodel4.1,postmodel4.2)
+
+
+### Hypothesis testing ###
+hypothesis(postmodel4.1,"SocialConformityM < 0")
+plot(hypothesis(postmodel4.1,"SocialConformityM < 0"))
+
+hypothesis(postmodel4.2,"SocialConformityM < 0")
+plot(hypothesis(postmodel4.2,"SocialConformityM < 0"))
+
+hypothesis(postmodel4.2,"Diagnosis1 > 0")
+plot(hypothesis(postmodel4.2,"SocialConformityM < 0"))
+
+
+# conditional effects
+plot(conditional_effects(postmodel4.2), points=T, rug=T)[[1]] + theme_classic()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
