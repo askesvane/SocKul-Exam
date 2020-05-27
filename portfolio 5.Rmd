@@ -18,6 +18,11 @@ setwd("C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/data/")
 # packages 
 library(pacman)
 pacman::p_load(tidyverse, patchwork, readr, rethinking, brms, bayesplot, ggthemes, patchwork)
+color_scheme_set("viridis")
+
+# color theme
+p_load(bayesplot)
+color_scheme_set("viridis")
 
 # import data
 Sac <- read_csv("SaccadesDV.csv", 
@@ -291,6 +296,7 @@ rm(id,row,scale,session,trial,trial_sac)
 
 # Hypotheses
 ```{r}
+
 # Read preprocessed data
 d <- read_csv("data_preprocessed.csv", col_types = cols(
       CurrentGroupRating = col_number(), 
@@ -316,10 +322,6 @@ d <- d %>% mutate(
 d$GR_Time_Scale <- ifelse(d$GR_Time_Scale == 1, 0.99,d$GR_Time_Scale)
 d$GR_Time_Scale <- ifelse(d$GR_Time_Scale == 0, 0.01,d$GR_Time_Scale)
 
-
-d %>% group_by(Session) %>% summarise(
-  mean_GR = mean(GR_Time_Scale, na.rm = T)
-)
 
 ## First model
 # formula and priors
@@ -347,7 +349,7 @@ priormodel1.1 <- brm(
    cores = 1
    )
 
-pp_check(priormodel1.1, nsamples=100)
+pp_check(priormodel1.1, nsamples=50)
 
 postmodel1.1 <- brm(
   formula1.1,
@@ -361,9 +363,9 @@ postmodel1.1 <- brm(
   cores = 4
 )
 
-pp_check(postmodel1.1, nsamples=100)
+pp_check(postmodel1.1, nsamples=50)
 summary(postmodel1.1)
-
+plot(postmodel1.1)
 
 
 ## Second model
@@ -393,7 +395,7 @@ priormodel1.2 <- brm(
    cores = 1
    )
  
-pp_check(priormodel1.2, nsamples=100)
+pp_check(priormodel1.2, nsamples=50)
  
 postmodel1.2 <- brm(
   formula1.2,
@@ -407,9 +409,10 @@ postmodel1.2 <- brm(
    cores = 4
    )
  
-pp_check(postmodel1.2, nsamples=100)
-summary(postmodel1.2)
+pp_check(postmodel1.2, nsamples=50)
 
+summary(postmodel1.2)
+plot(postmodel1.2)
 
 
 
@@ -440,7 +443,7 @@ priormodel1.3 <- brm(
    cores = 1
    )
  
-pp_check(priormodel1.3, nsamples=100)
+pp_check(priormodel1.3, nsamples=50)
 
  
 postmodel1.3 <- brm(
@@ -455,9 +458,9 @@ postmodel1.3 <- brm(
    cores = 4
    )
  
-pp_check(postmodel1.3, nsamples=100)
+pp_check(postmodel1.3, nsamples=50)
 summary(postmodel1.3)
-
+plot(postmodel1.3)
 
 
 ### Summaries for Hypothesis 1 ###
@@ -485,23 +488,26 @@ postmodel1.3 <- add_criterion(postmodel1.3, criterion = c("waic","loo"), reloo =
 
 # Loo compare
 H1_compare <- loo_compare(postmodel1.1, postmodel1.2, postmodel1.3)
-
+H1_compare
 # Loo model weights
 H1_weights <- loo_model_weights(postmodel1.1, postmodel1.2, postmodel1.3)
-
+H1_weights
 
 
 
 ### Hypothesis testing ###
 
 hypothesis(postmodel1.2, "Session1 < Session2")
+
 hypothesis(postmodel1.2, "Session1 > Session2")
 plot(hypothesis(postmodel1.2, "Session1 < Session2"))
 plot(hypothesis(postmodel1.2, "Session1 > Session2"))
 
 hypothesis(postmodel1.3, "Session1:Diagnosis1 > Session1:Diagnosis0 ")
-hypothesis(postmodel1.3, "Session2:Diagnosis1 > Session2:Diagnosis0 ")
-plot(hypothesis(postmodel1.3, "Session2:Diagnosis1 > Session2:Diagnosis0 "))
+
+hypothesis(postmodel1.3, "Session2:Diagnosis1 < Session2:Diagnosis0 ")
+
+plot(hypothesis(postmodel1.3, "Session2:Diagnosis1 < Session2:Diagnosis0 "))
 
 
 
@@ -517,105 +523,116 @@ conditional_effects(postmodel1.3)
 ## Hypothesis 2
 ```{r}
 
-## First model
+d <- d %>% mutate(
+  FaceTimeSek = FaceTime/1000,
+  ID = as.factor(ID),
+  Picture = as.factor(Picture),
+  Diagnosis = as.factor(Diagnosis),
+  Session = as.factor(Session),
+  Trial = as.factor(Trial)
+)
+
+d$FaceTimeSek <- ifelse(d$FaceTimeSek == 0, 0.01,d$FaceTimeSek)
 
 
-# formula
-formula2.1 <- bf(FR_Time_Scale ~ 0 + Session + (1+Session|ID) + (1|Picture))
+# First model
+formula2.1 <- bf(FaceTimeSek ~ 0 + Session + (1 + Session | ID) + (1 | Picture))
 
-get_prior(formula2.1, d, family = "beta")
+get_prior(formula2.1, d, family = lognormal())
 
 prior2.1 <- c(
-  prior(normal(0, 0.2), class = b),
-  prior(normal(0, 10), class = phi),
-  prior(normal(0, 0.2), class = sd),
-  prior(lkj(5), class = cor)
+  prior(normal(1.1, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.2), class = sigma),
+  prior(lkj(5), class= cor)
 )
+
 
 # Run model based on priors alone
 priormodel2.1 <- brm(
    formula2.1,
    d,
-   family = "beta",
+   family = lognormal(),
    prior = prior2.1,
    sample_prior = "only",
-   iter=100,
-   warmup=50,
+   iter = 100,
+   warmup = 50,
    chains = 1,
-   cores = 4
-   )
- 
+   cores = 1
+)
+
 pp_check(priormodel2.1, nsamples=50)
- 
+
 postmodel2.1 <- brm(
    formula2.1,
    d,
-   family = "beta",
+   family = lognormal(),
    prior = prior2.1,
    sample_prior = T,
-   iter=2000,
-   warmup=1000,
+   iter = 4000,
+   warmup = 2000,
    chains = 2,
    cores = 4
-   )
- 
-pp_check(postmodel2.1, nsamples=100)
+)
+
 summary(postmodel2.1)
+pp_check(postmodel2.1, nsamples=50)
 
 
+# Second model
+formula2.2 <- bf(FaceTimeSek ~ 0 + Session + Diagnosis + (1 + Session | ID) + (1 | Picture))
 
-## Second model
-
-# formula
-formula2.2 <- bf(FR_Time_Scale ~ 0 + Session:Diagnosis + (1+Session|ID) + (1|Picture))
-
-get_prior(formula2.2, d, family = "beta")
+get_prior(formula2.2, d, family = lognormal())
 
 prior2.2 <- c(
-  prior(normal(0, 0.2), class = b),
-  prior(normal(0, 10), class = phi),
-  prior(normal(0, 0.2), class = sd),
-  prior(lkj(5), class = cor)
+  prior(normal(1.1, 0.2), class = b),
+  prior(normal(0, 0.3), class = sd),
+  prior(normal(0, 0.2), class = sigma),
+  prior(lkj(5), class= cor)
 )
 
 # Run model based on priors alone
 priormodel2.2 <- brm(
    formula2.2,
    d,
-   family = "beta",
+   family = lognormal(),
    prior = prior2.2,
    sample_prior = "only",
-   iter=500,
-   warmup=250,
+   iter = 100,
+   warmup = 50,
    chains = 1,
    cores = 4
-   )
- 
-pp_check(priormodel2.2, nsamples=100)
- 
+)
+
+pp_check(priormodel2.2, nsamples=30)
+
 postmodel2.2 <- brm(
-  formula2.2,
+   formula2.2,
    d,
-   family = "beta",
+   family = lognormal(),
    prior = prior2.2,
    sample_prior = T,
-   iter=2000,
-   warmup=1000,
+   iter = 4000,
+   warmup = 2000,
    chains = 2,
    cores = 4
-   )
- 
-pp_check(postmodel2.2, nsamples=100)
+)
+
 summary(postmodel2.2)
+pp_check(postmodel2.2, nsamples=50)
 
 
 
 
-### Summaries for Hypothesis 2 ###
+ ### Summaries for Hypothesis 2 ###
+plot(postmodel2.1)
+plot(postmodel2.2)
+
 
 # Summary for model 1
 summary(postmodel2.1)
 (exp(fixef(postmodel2.1)))/(1+exp(fixef(postmodel2.1)))
+exp(fixef(postmodel2.1))
 
 
 #Summary for model 2
@@ -623,180 +640,47 @@ summary(postmodel2.2)
 (exp(fixef(postmodel2.2)))/(1+exp(fixef(postmodel2.2)))
 
 
-
-## Model Compare
+ ## Model Compare
 postmodel2.1 <- add_criterion(postmodel2.1, criterion = c("waic","loo"))
 postmodel2.2 <- add_criterion(postmodel2.2, criterion = c("waic","loo"))
+
 
 loo_compare(postmodel2.1, postmodel2.2)
 loo_model_weights(postmodel2.1, postmodel2.2)
 
 
-### Hypothesis testing ###
 
-#"Across groups, fixations on first own rating, relative to total time on scale will be shorter in session 2."
+
+ ### Hypothesis testing ###
+
+#Session 2 will have lower FaceTimes than Session 1"
 hypothesis(postmodel2.1, "Session1 > Session2")
 plot(hypothesis(postmodel2.1, "Session1 > Session2"))
 
-hypothesis(postmodel2.2, "Session1:Diagnosis1 > Session2:Diagnosis1")
-hypothesis(postmodel2.2, "Session1:Diagnosis0 > Session2:Diagnosis0")
+# "Diagnosis SCZ will have lower FaceTimes than TD's for both sessions"
+hypothesis(postmodel2.2, "Diagnosis1 < 0")
+plot(hypothesis(postmodel2.2, "Diagnosis1 < 0"))
 
-plot(hypothesis(postmodel2.2, "Session1:Diagnosis1 > Session2:Diagnosis1"))
-plot(hypothesis(postmodel2.2, "Session1:Diagnosis0 > Session2:Diagnosis0"))
-
-
-### Hypothesis testing ###
-
-# "The ratio between fixation time spent on first rating and fixation time spent on the entire scale, can be predicted by session interacting with diagnosis. We expect Session2:Diagnosis1 having a higher fixation time on previous rating (relative to scale time), compared to Session2:Diagnosis0"
-hypothesis(postmodel2.2, "Session2:Diagnosis1 > Session2:Diagnosis0 ")
-plot(hypothesis(postmodel2.2, "Session2:Diagnosis1 > Session2:Diagnosis0 "))
+# Alternative hypothesis 
+hypothesis(postmodel2.2, "Diagnosis1 > 0")
 
 
-# Effects visualized
+hypothesis(postmodel2.2, "Diagnosis0 > Diagnosis1")
+
+?plot(hypothesis(postmodel2.2, "Diagnosis1 > 0"))
+
+
+
+### Effects visualized ###
 conditional_effects(postmodel2.1)
 conditional_effects(postmodel2.2)
-
-
 
 
 ```
 
 ## Hypothesis 3
-```{r}
 
-
-# First model
-formula3.1 <- bf(FaceTimeSek ~ 1 + Session + (1 + Session | ID) + (1 | Picture))
-
-get_prior(formula3.1, d, family = lognormal())
-
-prior3.1 <- c(
-  prior(normal(1.1, 0.2), class = Intercept),
-  prior(normal(0, 0.2), class = b),
-  prior(normal(0, 0.3), class = sd),
-  prior(normal(0, 0.2), class = sigma),
-  prior(lkj(5), class= cor)
-)
-
-
-# Run model based on priors alone
-priormodel3.1 <- brm(
-   formula3.1,
-   d,
-   family = lognormal(),
-   prior = prior3.1,
-   sample_prior = "only",
-   iter = 100,
-   warmup = 50,
-   chains = 1,
-   cores = 4
-)
-
-pp_check(priormodel3.1, nsamples=50)
-
-postmodel3.1 <- brm(
-   formula3.1,
-   d,
-   family = lognormal(),
-   prior = prior3.1,
-   sample_prior = T,
-   iter = 2000,
-   warmup = 1000,
-   chains = 2,
-   cores = 4
-)
-
-summary(postmodel3.1)
-pp_check(postmodel3.1, nsamples=100)
-
-
-# Second model
-formula3.2 <- bf(FaceTimeSek ~ 0 + Session + Diagnosis + (1 + Session | ID) + (1 | Picture))
-
-get_prior(formula3.2, d, family = lognormal())
-
-prior3.2 <- c(
-  prior(normal(1.1, 0.2), class = Intercept),
-  prior(normal(0, 0.2), class = b),
-  prior(normal(0, 0.3), class = sd),
-  prior(normal(0, 0.2), class = sigma),
-  prior(lkj(5), class= cor)
-)
-
-# Run model based on priors alone
-priormodel3.2 <- brm(
-   formula3.2,
-   d,
-   family = lognormal(),
-   prior = prior3.2,
-   sample_prior = "only",
-   iter = 100,
-   warmup = 50,
-   chains = 1,
-   cores = 4
-)
-
-pp_check(priormodel3.2, nsamples=50)
-
-postmodel3.2 <- brm(
-   formula3.2,
-   d,
-   family = lognormal(),
-   prior = prior3.2,
-   sample_prior = T,
-   iter = 2000,
-   warmup = 1000,
-   chains = 2,
-   cores = 4
-)
-
-summary(postmodel3.2)
-pp_check(postmodel3.2, nsamples=100)
-
-
-
-### Summaries for Hypothesis 3 ###
-
-# Summary for model 1
-summary(postmodel3.1)
-(exp(fixef(postmodel3.1)))/(1+exp(fixef(postmodel3.1)))
-
-#Summary for model 2
-summary(postmodel3.2)
-(exp(fixef(postmodel3.2)))/(1+exp(fixef(postmodel3.2)))
-
-
-## Model Compare
-postmodel3.1 <- add_criterion(postmodel3.1, criterion = c("waic","loo"))
-postmodel3.2 <- add_criterion(postmodel3.2, criterion = c("waic","loo"))
-
-loo_compare(postmodel3.1, postmodel3.2)
-loo_model_weights(postmodel3.1, postmodel3.2)
-
-
-
-### Hypothesis testing ###
-
-#"Session 2 will have lower FaceTimes than Session 1"
-hypothesis(postmodel3.1, "0 > Session2")
-plot(hypothesis(postmodel3.1, "0 > Session2"))
-
-# "Diagnosis SCZ will have lower FaceTimes than TD's for Session 1, and Session 2, respectively"
-hypothesis(postmodel3.2, "Diagnosis1 < 0")
-plot(hypothesis(postmodel3.2, "Diagnosis1 < 0"))
-
-
-### Effects visualized ###
-conditional_effects(postmodel3.1)
-conditional_effects(postmodel3.2)
-
-
-```
-
-## Hypothesis 4
-
-
-### Preprocess data for running re-analysis (H4) - Extract Social conformity scores
+### Preprocess data for running re-analysis (H3) - Extract Social conformity scores
 
 Subset data
 ```{r}
@@ -869,6 +753,7 @@ postmodelSC1 <- brm(
 summary(postmodelSC1)
 pp_check(postmodelSC1, nsamples=100)
 fixef(postmodelSC1)
+plot(postmodelSC1)
 
 
 ```
@@ -955,21 +840,20 @@ d4 <- d4 %>% mutate(
 ### For Face duration in session 2
 
 # Formula 1
-formula4.1 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + (1|ID) + (1|Picture) ) # + (1|Picture)
+formula3.1 <- bf(FaceTime2_sek ~ 1 + (1|ID) + (1|Picture) )
 
-get_prior(formula4.1, d4, family = lognormal())
-prior4.1 <- c(
-  prior(normal(1.1, 0.2), class = Intercept),
-  prior(normal(0, 0.2), class = b),
-  prior(normal(0, 0.3), class = sd),
-  prior(normal(0, 0.20), class = sigma))
+get_prior(formula3.1, d4, family = lognormal())
+prior3.1 <- c(
+  prior(normal(0.5, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = sd),
+  prior(normal(0, 0.35), class = sigma))
 
 
-priormodel4.1 <- brm(
-   formula4.1,
+priormodel3.1 <- brm(
+   formula3.1,
    d4,
    family = lognormal(),
-   prior = prior4.1,
+   prior = prior3.1,
    sample_prior = "only",
    chains = 1,
    cores = 1,
@@ -977,42 +861,41 @@ priormodel4.1 <- brm(
    warmup = 100
 )
 
-pp_check(priormodel4.1, nsamples=80)
+pp_check(priormodel3.1, nsamples=80)
 
-postmodel4.1 <- brm(
-  formula4.1,
+postmodel3.1 <- brm(
+  formula3.1,
   d4,
   family = lognormal(),
-  prior = prior4.1,
+  prior = prior3.1,
   sample_prior = T,
-  chains = 2,
-  cores = 2,
-  iter = 2000,
-  warmup = 1000
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  warmup = 2000
 )
 
 
-pp_check(postmodel4.1, nsamples=80)
-summary(postmodel4.1)
-
+pp_check(postmodel3.1, nsamples=80)
+summary(postmodel3.1)
 
 
 # Formula 2
-formula4.2 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + Diagnosis + (1|ID) + (1|Picture)) 
+formula3.2 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + (1|ID) + (1|Picture) )
 
-get_prior(formula4.2, d4, family = lognormal())
-prior4.2 <- c(
-  prior(normal(1.1, 0.2), class = Intercept),
+get_prior(formula3.2, d4, family = lognormal())
+prior3.2 <- c(
+  prior(normal(0.5, 0.2), class = Intercept),
   prior(normal(0, 0.2), class = b),
-  prior(normal(0, 0.3), class = sd),
-  prior(normal(0, 0.2), class = sigma))
+  prior(normal(0, 0.2), class = sd),
+  prior(normal(0, 0.35), class = sigma))
 
 
-priormodel4.2 <- brm(
-   formula4.2,
+priormodel3.2 <- brm(
+   formula3.2,
    d4,
    family = lognormal(),
-   prior = prior4.2,
+   prior = prior3.2,
    sample_prior = "only",
    chains = 1,
    cores = 1,
@@ -1020,47 +903,179 @@ priormodel4.2 <- brm(
    warmup = 100
 )
 
-pp_check(priormodel4.2, nsamples=80)
+pp_check(priormodel3.2, nsamples=80)
 
-postmodel4.2 <- brm(
-  formula4.2,
+postmodel3.2 <- brm(
+  formula3.2,
   d4,
   family = lognormal(),
-  prior = prior4.2,
+  prior = prior3.2,
   sample_prior = T,
-  chains = 2,
-  cores = 2,
-  iter = 2000,
-  warmup = 1000
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  warmup = 2000
 )
 
 
-pp_check(postmodel4.2, nsamples=100)
-summary(postmodel4.2)
+pp_check(postmodel3.2, nsamples=80)
+summary(postmodel3.2)
 
+
+
+# Formula 3
+formula3.3 <- bf(FaceTime2_sek ~ 1 + SocialConformityM + Diagnosis + (1|ID) + (1|Picture)) 
+
+get_prior(formula3.3, d4, family = lognormal())
+prior3.3 <- c(
+  prior(normal(0.5, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.2), class = sd),
+  prior(normal(0, 0.35), class = sigma))
+
+
+priormodel3.3 <- brm(
+   formula3.3,
+   d4,
+   family = lognormal(),
+   prior = prior3.3,
+   sample_prior = "only",
+   chains = 1,
+   cores = 1,
+   iter = 200,
+   warmup = 100
+)
+
+pp_check(priormodel3.3, nsamples=80)
+
+postmodel3.3 <- brm(
+  formula3.3,
+  d4,
+  family = lognormal(),
+  prior = prior3.3,
+  sample_prior = T,
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  warmup = 2000
+)
+
+
+pp_check(postmodel3.3, nsamples=50)
+summary(postmodel3.3)
+
+
+
+ # Formula 4
+formula3.4 <- bf(FaceTime2_sek ~ 1 + SocialConformityM:Diagnosis + (1|ID) + (1|Picture)) 
+
+get_prior(formula3.4, d4, family = lognormal())
+
+prior3.4 <- c(
+  prior(normal(0.5, 0.2), class = Intercept),
+  prior(normal(0, 0.2), class = b),
+  prior(normal(0, 0.2), class = sd),
+  prior(normal(0, 0.35), class = sigma))
+
+
+priormodel3.4 <- brm(
+   formula3.4,
+   d4,
+   family = lognormal(),
+   prior = prior3.4,
+   sample_prior = "only",
+   chains = 1,
+   cores = 1,
+   iter = 200,
+   warmup = 100
+)
+
+pp_check(priormodel3.4, nsamples=80)
+
+postmodel3.4 <- brm(
+  formula3.4,
+  d4,
+  family = lognormal(),
+  prior = prior3.4,
+  sample_prior = T,
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  warmup = 2000
+)
+
+
+pp_check(postmodel3.4, nsamples=50)
+summary(postmodel3.4)
+
+# Trace plots
+plot(postmodel3.1)
+plot(postmodel3.2)
+plot(postmodel3.3)
+plot(postmodel3.4)
 
 
 ### Run comparison ###
-postmodel4.1 <- add_criterion(postmodel4.1,criterion="loo")
-postmodel4.2 <- add_criterion(postmodel4.2,criterion="loo")
+postmodel3.1 <- add_criterion(postmodel3.1,criterion="loo")
+postmodel3.2 <- add_criterion(postmodel3.2,criterion="loo")
+postmodel3.3 <- add_criterion(postmodel3.3,criterion="loo")
+postmodel3.4 <- add_criterion(postmodel3.4,criterion="loo")
 
-loo_compare(postmodel4.1,postmodel4.2)
-loo_model_weights(postmodel4.1,postmodel4.2)
+loo_compare(postmodel3.1, postmodel3.2,postmodel3.3,postmodel3.4)
+loo_model_weights(postmodel3.1, postmodel3.2,postmodel3.3,postmodel3.4)
 
 
 ### Hypothesis testing ###
-hypothesis(postmodel4.1,"SocialConformityM < 0")
-plot(hypothesis(postmodel4.1,"SocialConformityM < 0"))
+hypothesis(postmodel3.1,"SocialConformityM < 0")
+plot(hypothesis(postmodel3.1,"SocialConformityM < 0"))
 
-hypothesis(postmodel4.2,"SocialConformityM < 0")
-plot(hypothesis(postmodel4.2,"SocialConformityM < 0"))
+hypothesis(postmodel3.2,"SocialConformityM < 0")
+plot(hypothesis(postmodel3.2,"SocialConformityM < 0"))
 
-hypothesis(postmodel4.2,"Diagnosis1 > 0")
-plot(hypothesis(postmodel4.2,"SocialConformityM < 0"))
+hypothesis(postmodel3.2,"Diagnosis1 > 0")
+plot(hypothesis(postmodel3.2,"SocialConformityM < 0"))
 
 
 # conditional effects
-plot(conditional_effects(postmodel4.2), points=T, rug=T)[[1]] + theme_classic()
+plot(conditional_effects(postmodel3.1), points=T, rug=T)[[1]] + theme_classic()
+
+```
+
+
+
+
+Eye gaze plots
+```{r}
+p_load("jpeg","ggrepel", "patchwork", "tidyverse", "lme4", "gridExtra","DHARMa", "MuMIn")
+ggplot2::theme_set(theme_bw())
+
+x <- FixNew %>% filter(ID == 101 & Picture == 149 & Session == 1) %>% mutate(AvgY = 1024 - AvgY) # flip Y axis
+
+# AOI in data = left: 390, right: 890, bottom: 235, top: 900 (unknown pic size)
+# picture: left: 324, right: 740, bottom: 852 - 656 = 196, top: 852 - 101 = 751 (pic size = 1063 x 852)
+
+# I change the coordinates relative to the pixel size of the picture
+x <- x %>% 
+  mutate(
+    AvgX = AvgX / 390 * 324, 
+    AvgY = AvgY / 235 * 196,
+    FixationN = as.factor(FixationN))
+
+
+# Picture dimensions: 852 x 1063
+img <- jpeg::readJPEG("C:/Users/askes/OneDrive/Skrivebord/SocKul - Exam/pic149.jpg")  
+
+
+img <- grid::rasterGrob(img, width=unit(1, "npc"), height = unit(1,"npc"),
+                        interpolate = FALSE) # something with the size
+
+
+ggplot(x, aes(AvgX, AvgY, color = "Red")) + 
+  annotation_custom(img, xmin = 0, xmax = 1063, ymin = 0, ymax = 852) +
+  geom_path(color = "black") +
+  geom_point(size = x$Duration*.02, alpha = .8) +
+  ggrepel::geom_text_repel(aes(label = x$Duration), size = 3, color = "white") +
+  xlim(0,1063) + ylim(0,852)
 
 ```
 
